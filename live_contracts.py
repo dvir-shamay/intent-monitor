@@ -1,4 +1,4 @@
-"""Bounded, product-owned LA-1 records. No transport or detector execution."""
+"""Bounded, product-owned records. No transport or detector execution."""
 
 from dataclasses import dataclass, field, replace
 from enum import Enum

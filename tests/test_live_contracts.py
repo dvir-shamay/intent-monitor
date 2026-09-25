@@ -1,4 +1,4 @@
-"""Offline contracts and inert-tool acceptance for LA-1 only."""
+"""Offline contracts and inert-tool acceptance suite."""
 
 from collections import UserString
 from dataclasses import FrozenInstanceError

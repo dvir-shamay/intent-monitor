@@ -1,7 +1,7 @@
-# LA-1: Offline Contracts And Inert Tools
+# Live-agent: offline contracts and inert mock tools
 
-Status: product-engineering substrate only. LA-2 is not implemented by this increment.
-The governing scope is [LA-1 in the live-agent plan](../SPRINT-PLAN-LIVE-AGENT.md).
+Status: product-engineering substrate only. The full live-agent loop is not
+implemented yet.
 
 EXPERIMENTAL / ILLUSTRATIVE. Not validated on real agent traces; no empirical
 catch rate or deployment false-positive rate. Observed stated plans are a proxy,
@@ -14,10 +14,10 @@ evaluation has run. Errors, misses and false alarms remain possible.
 - [live_contracts.py](../live_contracts.py) owns immutable records, native request
   validation, fresh tool schemas, and qualified summary rendering.
 - [mock_tools.py](../mock_tools.py) owns copied synthetic state and four fixed
-  dispatch branches. Neither module imports the legacy monitor or research code.
+  dispatch branches. Neither module imports the existing monitor or research code.
 - [tests/test_live_contracts.py](../tests/test_live_contracts.py) is the offline
   acceptance suite. Existing modules, fixtures, historical results and the 20
-  legacy regressions remain unchanged.
+  existing monitor regressions remain unchanged.
 
 Runtime dependencies are Python 3.12's standard library only. Pytest is a
 development dependency. Imports and handler calls require no bridge, model,
@@ -25,7 +25,7 @@ credentials, research checkout, installation step, or host data.
 
 No actor loop, chat transport, extractor, semantic judge, CLI, preset workflow,
 trace persistence, packaging or research evaluation is included. Native requests
-in LA-1 are constructed test input, not captured live-agent behavior.
+in this layer are constructed test input, not captured live-agent behavior.
 
 ## Native Input And Validation
 
@@ -82,7 +82,7 @@ rendered JSON object; changing it cannot change recorded state.
 | `ToolOutput` / `ToolResult` | Immutable synthetic output or typed failure, linked by sequence and native ID, always `mock: true` |
 | `BatchResult` | Validation plus one linked result for each retained call |
 | `StateSnapshot` | Detached virtual file/content tuples and `total_bytes` |
-| `CallVerdict` | Per-call assessment; LA-1 permits only `UNKNOWN` / `DETECTOR_NOT_RUN` |
+| `CallVerdict` | Per-call assessment; this layer permits only `UNKNOWN` / `DETECTOR_NOT_RUN` |
 | `RunResult` | Run ID, plan snapshots, ordered batches, run status/reason; verdict fixed to `INCONCLUSIVE` |
 
 | Surface | Bound |
@@ -128,7 +128,7 @@ typed batch errors rather than parser exceptions.
 
 ## Inert Tool Semantics
 
-`MockTools(seed: dict[str, str] | None = None, *, run_id="la-1")`
+`MockTools(seed: dict[str, str] | None = None, *, run_id="local")`
 
 The default seed contains only an embedded synthetic record and empty summary.
 Explicit seed dictionaries are validated and copied. No workspace is read.
@@ -193,7 +193,7 @@ an incomplete captured batch from a fully observed rejection in text as well as
 JSON.
 
 The six run-status enums are completed/refused/failed/capped/interrupted/blocked.
-LA-1 produces completed/failed/capped/blocked for mock execution only. It never
+This layer produces completed/failed/capped/blocked for mock execution only. It never
 produces `NO_OBSERVED_DIVERGENCE` or `FLAGGED`: all run verdicts are `INCONCLUSIVE`
 and all per-call assessments are `UNKNOWN`, because no detector ran. Enums for
 future determinate verdicts do not enable a detector in this increment.
@@ -248,6 +248,9 @@ exercised as a positive control; handler success and rejection paths must then
 produce zero hits. No model or bridge is needed. These are engineering checks,
 not detector accuracy evidence.
 
+The offline suite passes 110 tests: 90 contract cases and all 20 existing monitor
+regressions, plus 12 documentation doctest checks with site packages disabled.
+
 The architect and eight-role design review closed with PASS. Design findings
 LA1-SEC-01 and TW-1 through TW-4 are FIXED by strict common-text UTF-8 parsing,
 surrogate rejection, atomicity/sealing assertions, retained-capture assertions,
@@ -259,60 +262,9 @@ Implementation review dispositions:
 | --- | --- | --- |
 | LA1-CR-01, LA1-QA-01, DBG-01 | FIXED | Both public argument/output records require exact strings before directory/destination equality; four mutable-wrapper regressions |
 | TW-5, TW-6 | FIXED | Literal native-schema limits and initial-state file/content/aggregate quota tests |
-| LA1-QA-02 | FIXED | Current full offline suite includes all 20 unchanged legacy regressions |
+| LA1-QA-02 | FIXED | Current full offline suite includes all 20 unchanged existing regressions |
 | LA1-QA-03, LA1-DOC-01, LA1-UX-03 | FIXED | Text and JSON identify every call's batch and plan ID or explicit null |
 | LA1-DOC-02 | FIXED | Documented/tested nullable identity fields for malformed retained observations |
 | LA1-UX-01 | FIXED | Both renderers expose byte counts, observed/retained counts and completeness |
 | LA1-UX-02 | FIXED | Otherwise-valid blocked calls use BATCH_REJECTED, preserving the original batch/individual error |
 | TW7 | FIXED | Batch-reason test targets the batch line, not an incidental matching header substring |
-
-## LA-1 Retro
-
-### Sprint Goal
-
-Complete the authorized offline LA-1 contract/tool substrate only.
-
-### Completed
-
-Two independent product modules, focused acceptance tests and this contract.
-Pure-handler review found no route to real execution or research imports. Review
-findings are resolved above; no deferred implementation scope was added.
-
-### Validation Results
-
-On 2026-09-25, the full offline suite passed **110 tests**: **90 LA-1 cases and
-all 20 existing regressions**. The standalone documentation example passed
-**12 doctest checks** with site packages disabled. Isolation tests exercised each
-installed deny hook before verifying zero handler-path hits. These results
-establish engineering behavior only, not real-trace validation or efficacy.
-
-### What Worked
-
-Failing tests preceded each new module and reproduced implementation-review
-defects before repair. The full regression suite stayed unchanged. Whole-batch
-quota projections and source review supplemented host-I/O deny tests, which alone
-would not detect an unintended in-memory partial write.
-
-### What Was Constrained
-
-No git operations, live model/bridge calls or research-artifact changes. No UI was
-changed, so browser QA does not apply. Python pytest/doctest are the applicable
-checks, not the generic sprint prompt's Node test command. Research validators,
-research run-sheet updates and git-based retro steps are excluded by the explicit
-task boundary. The original seven-sprint plan is not advanced or rewritten.
-
-### Learnings
-
-- Frozen dataclasses still need exact primitive-type checks: equality with a
-  mutable string wrapper can otherwise retain a mutable object.
-- Native JSON-schema patterns use search semantics; test prefix and trailing
-  newline rejection as well as runtime full-match validation.
-- Assert output fields on the intended record/line, not an incidental substring
-  elsewhere in the summary.
-
-### Carry Forward
-
-Next-sprint consumers can use `tool_schemas`, `PlanRecord`, the raw-array
-validator, the inert executor and its immutable results. Extending provenance,
-live transport or detector modes requires separately authorized work. Stop here
-for LA-1; none of these contracts authorizes LA-2 or research execution.

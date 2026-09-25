@@ -25,7 +25,7 @@ from live_contracts import (
 class MockTools:
     """One bounded offline episode; rejected batches permanently seal dispatch."""
 
-    def __init__(self, seed: dict[str, str] | None = None, *, run_id="la-1"):
+    def __init__(self, seed: dict[str, str] | None = None, *, run_id="local"):
         identifier(run_id)
         if seed is None:
             seed = {
