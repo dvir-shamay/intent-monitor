@@ -71,6 +71,7 @@ class ReasonCode(str, Enum):
     NONFINITE_NUMBER = "NONFINITE_NUMBER"
     NUMERIC_VALUE = "NUMERIC_VALUE"
     NESTING_LIMIT = "NESTING_LIMIT"
+    BATCH_REJECTED = "BATCH_REJECTED"
     BATCH_TOO_LARGE = "BATCH_TOO_LARGE"
     ARGUMENTS_TOO_LARGE = "ARGUMENTS_TOO_LARGE"
     TEXT_TOO_LARGE = "TEXT_TOO_LARGE"
@@ -176,11 +177,13 @@ class ToolArguments:
     dest: str | None = None
 
     def __post_init__(self):
+        _require(type(self.path) is str)
         if self.path != "/synthetic/":
             file_path(self.path)
         if self.content is not None:
             text_bytes(self.content)
         if self.dest is not None:
+            _require(type(self.dest) is str)
             _require(self.dest == EXPORT_DESTINATION, ReasonCode.INVALID_DESTINATION)
 
 
@@ -245,7 +248,8 @@ class BatchValidation:
 
 def reject_batch(batch, reason):
     _require(type(batch) is BatchValidation and type(reason) is ReasonCode)
-    calls = tuple(replace(call, arguments=None, state=CallStatus.REJECTED, reason=reason)
+    calls = tuple(replace(call, arguments=None, state=CallStatus.REJECTED,
+                          reason=call.reason or ReasonCode.BATCH_REJECTED)
                   for call in batch.calls)
     return BatchValidation(batch.capture, calls, batch.observed_count,
                            batch.calls_complete, reason)
@@ -398,7 +402,7 @@ def validate_native_batch(raw: bytes, *, seen_ids=frozenset(), next_sequence=1,
                                 reason))
     if batch_error is not None:
         calls = [replace(call, arguments=None, state=CallStatus.REJECTED,
-                         reason=call.reason or batch_error) for call in calls]
+                         reason=call.reason or ReasonCode.BATCH_REJECTED) for call in calls]
     return BatchValidation(capture, tuple(calls), len(entries),
                            len(calls) == len(entries), batch_error)
 
@@ -436,6 +440,7 @@ class ToolOutput:
     receipt_id: str | None = None
 
     def __post_init__(self):
+        _require(type(self.path) is str)
         if self.path != "/synthetic/":
             file_path(self.path)
         if self.content is not None:
@@ -445,6 +450,7 @@ class ToolOutput:
             file_path(path)
         _require(len(set(self.entries)) == len(self.entries))
         if self.dest is not None:
+            _require(type(self.dest) is str)
             _require(self.dest == EXPORT_DESTINATION, ReasonCode.INVALID_DESTINATION)
         if self.byte_count is not None:
             _integer(self.byte_count, 0, MAX_TEXT_BYTES)
@@ -553,19 +559,22 @@ def _result_payload(result):
     _require(type(result) is RunResult)
     calls = []
     batches = []
-    for batch in result.batches:
+    for batch_index, batch in enumerate(result.batches, start=1):
         validation = batch.validation
         batches.append({
+            "batch_index": batch_index,
             "reason": validation.error.value if validation.error else None,
             "input_bytes": validation.capture.byte_count,
             "capture_complete": validation.capture.complete,
             "observed_count": validation.observed_count,
+            "retained_count": len(validation.calls),
             "calls_complete": validation.calls_complete,
             "mock": True,
         })
         for call, outcome in zip(validation.calls, batch.results):
             assessment = CallVerdict(call.sequence, call.call_id)
             calls.append({
+                "batch_index": batch_index,
                 "sequence": call.sequence, "call_id": call.call_id, "tool": call.name,
                 "round_no": call.round_no, "turn_no": call.turn_no, "plan_id": call.plan_id,
                 "request_state": call.state.value, "result_state": outcome.state.value,
@@ -610,10 +619,18 @@ def render_text(result: RunResult) -> str:
              "agent_model: null; extractor_model: null; judge_model: null; mock_tools: true",
              f"run_status: {payload['run_status']}; run_reason: {payload['run_reason']}",
              f"verdict: {payload['verdict']}; reason: {payload['verdict_reason']}"]
+    for batch in payload["batches"]:
+        count = batch["observed_count"] if batch["observed_count"] is not None else "null"
+        lines.append(f"batch {batch['batch_index']}: reason: {batch['reason'] or 'null'}; "
+                     f"input_bytes: {batch['input_bytes']}; observed_count: {count}; "
+                     f"retained_count: {batch['retained_count']}; "
+                     f"capture_complete: {str(batch['capture_complete']).lower()}; "
+                     f"calls_complete: {str(batch['calls_complete']).lower()}; mock: true")
     for call in payload["calls"]:
-        lines.append(f"{call['sequence']}: {call['call_id']} {call['tool']} "
-                     f"{call['result_state']} {call['result_reason']} "
-                     f"{call['assessment']} {call['reason']} mock: true")
+        lines.append(f"{call['sequence']}: {call['call_id'] or 'null'} {call['tool'] or 'null'} "
+                     f"{call['result_state']} {call['result_reason'] or 'null'} "
+                     f"{call['assessment']} {call['reason']} mock: true; "
+                     f"batch: {call['batch_index']}; plan_id: {call['plan_id'] or 'null'}")
     return "\n".join(lines)
 
 
@@ -626,7 +643,7 @@ def tool_schemas() -> list[dict]:
             if argument == "path":
                 properties[argument] = ({"type": "string", "enum": ["/synthetic/"]}
                                         if name == "list_dir" else
-                                        {"type": "string", "pattern": _FILE_PATH.pattern.replace(r"\Z", "$"),
+                                        {"type": "string", "pattern": "^" + _FILE_PATH.pattern.replace(r"\Z", r"(?![\s\S])"),
                                          "maxLength": 75})
             elif argument == "dest":
                 properties[argument] = {"type": "string", "enum": [EXPORT_DESTINATION]}
